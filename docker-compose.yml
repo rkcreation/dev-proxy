@@ -1,0 +1,122 @@
+#############################################################################
+# A new default web stack - using docker
+# 
+# Based on https://github.com/dwurf/default-web-stack
+# and on the ideas in Simon Willison's talk:
+# https://www.youtube.com/watch?v=P68zXJ_ACCE
+# 
+# Usage (for development):
+#    open https://localhost/
+#############################################################################
+version: '3'
+
+networks:
+  dev-frontend:
+    external: true
+  dev-backend:
+    external: true
+
+services:
+
+  #############################################################################
+  # nginx reverse proxy
+  # 
+  # This is the entry point for the stack, responsible for SSL termination and
+  # access logs
+  #############################################################################
+  proxy:
+    container_name: dev-proxy
+    image: jwilder/nginx-proxy:alpine
+    restart: always
+    environment:
+      - ENABLE_IPV6=${ENABLE_IPV6}
+    ports:
+      - 80:80
+      - 443:443
+    networks:
+      dev-frontend:
+        aliases:
+          - proxy
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./conf/nginx.conf:/etc/nginx/nginx.conf:rw
+      - ./conf/limits.conf:/etc/nginx/conf.d/limits.conf:ro
+      - ./conf/perfs.conf:/etc/nginx/conf.d/perfs.conf:ro
+      - ./conf/security.conf:/etc/nginx/conf.d/security.conf:ro
+      - ./conf/proxy.conf:/etc/nginx/proxy.conf:ro
+
+
+  #############################################################################
+  # Mailcatcher
+  #############################################################################
+  mailcatcher:
+    container_name: mailcatcher
+    restart: always
+    image: alexisno/mailcatcher
+    environment:
+      - VIRTUAL_HOST=${MAILCATCHER_HOST}
+      - VIRTUAL_PORT=1080
+    networks:
+      dev-frontend:
+      dev-backend:
+        aliases:
+          - mailcatcher
+
+
+  #############################################################################
+  # portainer service
+  #############################################################################
+  portainer:
+    container_name: portainer
+    image: portainer/portainer
+    restart: always
+    ports:
+      - 9000:9000
+    environment:
+      - VIRTUAL_HOST=${PORTAINER_HOST}
+      - VIRTUAL_PORT=9000
+    networks:
+      - dev-frontend
+    command: --admin-password-file /tmp/portainer_password -H unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/portainer:/data
+      - .env-portainer-password:/tmp/portainer_password
+
+
+  #############################################################################
+  # dns service
+  # test : docker run -d -p 80 -e VIRTUAL_HOST=hello.docker -e VIRTUAL_PORT=80 tutum/hello-world && open http://hello.docker
+  #############################################################################
+  # dns:
+  #   container_name: dev-dns
+  #   image: finboxio/docker-dns
+  #   restart: always
+  #   environment:
+  #     - PORT=${DNS_PORT:-53}
+  #     - EXTERNAL_DNS=${EXTERNAL_DNS:-8.8.8.8}
+  #     - HOSTS_FILE=/opt/custom-hosts
+  #   # command: --admin-password-file /tmp/portainer_password -H unix:///var/run/docker.sock
+  #   volumes:
+  #     - ./conf/hosts:/opt/custom-hosts
+  #   networks:
+  #     dev-frontend:
+
+
+  #############################################################################
+  # dnsmasq service
+  # https://github.com/jpillora/docker-dnsmasq
+  #############################################################################
+  # dnsmasq:
+  #   container_name: dnsmasq
+  #   image: jpillora/dnsmasq
+  #   restart: always
+  #   environment:
+  #     - VIRTUAL_HOST=${PORTAINER_HOST}
+  #   networks:
+  #     - dev-frontend
+  #   command: --admin-password-file /tmp/portainer_password -H unix:///var/run/docker.sock
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - ./data/portainer:/data
+  #     - .env-portainer-password:/tmp/portainer_password

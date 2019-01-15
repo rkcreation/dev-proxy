@@ -1,0 +1,6 @@
+127.0.0.1 portainer.local portainer
+127.0.0.1 mails.local mails
+
+127.0.0.1 *.docker
+
+127.0.0.1 *.nicolas.op nicolas.op
