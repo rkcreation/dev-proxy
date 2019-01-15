@@ -1,2 +1,5 @@
 .env*
 !.env*.dist
+data/**
+!data/**/
+!data/**/.gitkeep
